@@ -31,12 +31,12 @@ scale参数默认0.001，根据数据集，mAP,BN分布调整，数据分布广�
 `python slim_prune.py --cfg cfg/my_cfg.cfg --data data/my_data.data --weights weights/last.pt --global_percent 0.8 --layer_keep 0.1`
 
 #### 层剪枝
-这个策略是在之前的通道剪枝策略基础上衍生出来的，针对每一个shortcut层前一个CBL进行评价，对各层的Gmma最高值进行排序，取最小的进行层剪枝。为保证yolov3结构完整，这里每剪一个shortcut结构，会同时剪掉一个shortcut层和它前面的两个卷积层。是的，这里只考虑剪主干中的shortcut模块。但是yolov3中有23处shortcut，剪掉8个shortcut就是剪掉了24个层，剪掉16个shortcut就是剪掉了48个层，实验中对简单的数据集剪掉了较多shortcut而精度降低很少。<br>
+这个策略是在之前的通道剪枝策略基础上衍生出来的，针对每一个shortcut层前一个CBL进行评价，对各层的Gmma最高值进行排序，取最小的进行层剪枝。为保证yolov3结构完整，这里每剪一个shortcut结构，会同时剪掉一个shortcut层和它前面的两个卷积层。是的，这里只考虑剪主干中的shortcut模块。但是yolov3中有23处shortcut，剪掉8个shortcut就是剪掉了24个层，剪掉16个shortcut就是剪掉了48个层，总共有69个层的剪层空间；实验中对简单的数据集剪掉了较多shortcut而精度降低很少。<br>
 <br>
 `python layer_prune.py --cfg cfg/my_cfg.cfg --data data/my_data.data --weights weights/last.pt --shortcuts 12`
 
 #### 同时剪层和通道
-前面的通道剪枝和层剪枝已经分别压缩了模型的宽度和深度，可以自由搭配使用，调剂出针对自己数据集的一副良药。这里整合了一个同时剪层和通道的脚本，方便对比剪枝效果，有需要的可以使用这个脚本进行剪枝。<br>
+前面的通道剪枝和层剪枝已经分别压缩了模型的宽度和深度，可以自由搭配使用，甚至迭代式剪枝，调配出针对自己数据集的一副良药。这里整合了一个同时剪层和通道的脚本，方便对比剪枝效果，有需要的可以使用这个脚本进行剪枝。<br>
 <br>
 `python layer_channel_prune.py --cfg cfg/my_cfg.cfg --data data/my_data.data --weights weights/last.pt --shortcuts 12 --global_percent 0.8 --layer_keep 0.1`
 
