@@ -1,0 +1,6 @@
+classes=1
+train=D:/dl/YOLOv3-model-pruning/data/train_.txt
+valid=D:/dl/YOLOv3-model-pruning/data/valid_.txt
+names=D:/dl/YOLOv3-model-pruning/data/oxfordhand.names
+backup=backup/
+eval=coco
