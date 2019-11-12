@@ -136,9 +136,9 @@ if __name__ == '__main__':
     num_filters, filters_mask = obtain_filters_mask(model, threshold, CBL_idx, prune_idx)
 
     #%%
-    CBLidx2mask = {idx: mask for idx, mask in zip(CBL_idx, filters_mask)}
+    CBLidx2mask = {idx: mask.astype('float32') for idx, mask in zip(CBL_idx, filters_mask)}
 
-    pruned_model = prune_model_keep_size(model, prune_idx, CBL_idx, CBLidx2mask)
+    pruned_model = prune_model_keep_size2(model, CBL_idx, CBL_idx, CBLidx2mask)
 
     print("\nnow prune the model but keep size,(actually add offset of BN beta to next layer), let's see how the mAP goes")
     with torch.no_grad():
