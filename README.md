@@ -49,3 +49,5 @@ scale参数默认0.001，根据数据集，mAP,BN分布调整，数据分布广�
 `tensorboard --logdir runs`<br>
 <br>
 ![tensorboard](https://github.com/tanluren/yolov3-channel-and-layer-pruning/blob/master/data/img/2.jpg)
+<br>
+欢迎使用和测试，有问题或者交流实验过程可以发issue或者q我1806380874
