@@ -127,7 +127,7 @@ if __name__ == '__main__':
     for module_def in compact_module_defs:
         if module_def['type'] == 'route':
             from_layers = [int(s) for s in module_def['layers'].split(',')]
-            if len(from_layers) > 1:
+            if len(from_layers) == 2:
                 count = 0
                 for i in index_prune:
                     if i <= from_layers[1]:

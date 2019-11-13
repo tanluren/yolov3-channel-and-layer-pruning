@@ -17,7 +17,7 @@ if __name__ == '__main__':
     parser.add_argument('--weights', type=str, default='weights/last.pt', help='sparse model weights')
     parser.add_argument('--shortcuts', type=int, default=8, help='how many shortcut layers will be pruned,\
         pruning one shortcut will also prune two CBL,yolov3 has 23 shortcuts')
-    parser.add_argument('--global_percent', type=float, default=0.8, help='global channel prune percent')
+    parser.add_argument('--global_percent', type=float, default=0.6, help='global channel prune percent')
     parser.add_argument('--layer_keep', type=float, default=0.1, help='channel keep percent per layer')
     parser.add_argument('--img_size', type=int, default=416, help='inference size (pixels)')
     opt = parser.parse_args()
@@ -252,7 +252,7 @@ if __name__ == '__main__':
     for module_def in compact_module_defs:
         if module_def['type'] == 'route':
             from_layers = [int(s) for s in module_def['layers'].split(',')]
-            if len(from_layers) > 1:
+            if len(from_layers) == 2:
                 count = 0
                 for i in index_prune:
                     if i <= from_layers[1]:
