@@ -14,16 +14,18 @@ def parse_module_defs(module_defs):
 
     CBL_idx = []
     Conv_idx = []
+    ignore_idx = set()
     for i, module_def in enumerate(module_defs):
         if module_def['type'] == 'convolutional':
             if module_def['batch_normalize'] == '1':
                 CBL_idx.append(i)
             else:
                 Conv_idx.append(i)
+            if module_defs[i+1]['type'] == 'maxpool':
+                #spp前一个CBL不剪
+                ignore_idx.add(i)
 
-    ignore_idx = set()
-    for i, module_def in enumerate(module_defs):
-        if module_def['type'] == 'shortcut':
+        elif module_def['type'] == 'shortcut':
             ignore_idx.add(i-1)
             identity_idx = (i + int(module_def['from']))
             if module_defs[identity_idx]['type'] == 'convolutional':
@@ -31,8 +33,10 @@ def parse_module_defs(module_defs):
             elif module_defs[identity_idx]['type'] == 'shortcut':
                 ignore_idx.add(identity_idx - 1)
 
-    ignore_idx.add(84)
-    ignore_idx.add(96)
+        elif module_def['type'] == 'upsample':
+            #上采样层前的卷积层不裁剪
+            ignore_idx.add(i - 1)
+
 
     prune_idx = [idx for idx in CBL_idx if idx not in ignore_idx]
 
@@ -45,16 +49,22 @@ def parse_module_defs2(module_defs):
     Conv_idx = []
     shortcut_idx=dict()
     shortcut_all=set()
+    ignore_idx = set()
     for i, module_def in enumerate(module_defs):
         if module_def['type'] == 'convolutional':
             if module_def['batch_normalize'] == '1':
                 CBL_idx.append(i)
             else:
                 Conv_idx.append(i)
+            if module_defs[i+1]['type'] == 'maxpool':
+                #spp前一个CBL不剪
+                ignore_idx.add(i)
 
-    ignore_idx = set()
-    for i, module_def in enumerate(module_defs):
-        if module_def['type'] == 'shortcut':
+        elif module_def['type'] == 'upsample':
+            #上采样层前的卷积层不裁剪
+            ignore_idx.add(i - 1)
+
+        elif module_def['type'] == 'shortcut':
             identity_idx = (i + int(module_def['from']))
             if module_defs[identity_idx]['type'] == 'convolutional':
                 
@@ -67,9 +77,8 @@ def parse_module_defs2(module_defs):
                 shortcut_idx[i-1]=identity_idx-1
                 shortcut_all.add(identity_idx-1)
             shortcut_all.add(i-1)
-    #上采样层前的卷积层不裁剪
-    ignore_idx.add(84)
-    ignore_idx.add(96)
+        
+    
 
     prune_idx = [idx for idx in CBL_idx if idx not in ignore_idx]
 
@@ -173,10 +182,24 @@ def get_input_mask(module_defs, idx, CBLidx2mask):
                 route_in_idxs.append(idx - 1 + int(layer_i))
             else:
                 route_in_idxs.append(int(layer_i))
+
         if len(route_in_idxs) == 1:
             return CBLidx2mask[route_in_idxs[0]]
+
         elif len(route_in_idxs) == 2:
-            return np.concatenate([CBLidx2mask[in_idx - 1] for in_idx in route_in_idxs])
+            # return np.concatenate([CBLidx2mask[in_idx - 1] for in_idx in route_in_idxs])
+            mask1 = CBLidx2mask[route_in_idxs[0] - 1]
+            if module_defs[route_in_idxs[1]]['type'] == 'convolutional':
+                mask2 = CBLidx2mask[route_in_idxs[1]]
+            else:
+                mask2 = CBLidx2mask[route_in_idxs[1] - 1]
+            return np.concatenate([mask1, mask2])
+
+        elif len(route_in_idxs) == 4:
+            #spp结构中最后一个route
+            mask = CBLidx2mask[route_in_idxs[-1]]
+            return np.concatenate([mask, mask, mask, mask])
+
         else:
             print("Something wrong with route module!")
             raise Exception
@@ -274,7 +297,7 @@ def prune_model_keep_size2(model, prune_idx, CBL_idx, CBLidx2mask):
     for i, model_def in enumerate(model.module_defs):
 
         if model_def['type'] == 'convolutional':
-            activation = None
+            activation = torch.zeros(int(model_def['filters'])).cuda()
             if i in prune_idx:
                 mask = torch.from_numpy(CBLidx2mask[i]).cuda()
                 bn_module = pruned_model.module_list[i][1]
@@ -284,7 +307,7 @@ def prune_model_keep_size2(model, prune_idx, CBL_idx, CBLidx2mask):
                 bn_module.bias.data.mul_(mask)
             activations.append(activation)
 
-        if model_def['type'] == 'shortcut':
+        elif model_def['type'] == 'shortcut':
             actv1 = activations[i - 1]
             from_layer = int(model_def['from'])
             actv2 = activations[i + from_layer]
@@ -294,23 +317,28 @@ def prune_model_keep_size2(model, prune_idx, CBL_idx, CBLidx2mask):
             
 
 
-        if model_def['type'] == 'route':
+        elif model_def['type'] == 'route':
+            #spp不参与剪枝，其中的route不用更新，仅占位
             from_layers = [int(s) for s in model_def['layers'].split(',')]
+            activation = None
             if len(from_layers) == 1:
                 activation = activations[i + from_layers[0]]
                 update_activation(i, pruned_model, activation, CBL_idx)
-            else:
+            elif len(from_layers) == 2:
                 actv1 = activations[i + from_layers[0]]
                 actv2 = activations[from_layers[1]]
                 activation = torch.cat((actv1, actv2))
                 update_activation(i, pruned_model, activation, CBL_idx)
             activations.append(activation)
 
-        if model_def['type'] == 'upsample':
-            activation = torch.zeros(int(model.module_defs[i - 1]['filters'])).cuda()
-            activations.append(activation)
+        elif model_def['type'] == 'upsample':
+            # activation = torch.zeros(int(model.module_defs[i - 1]['filters'])).cuda()
+            activations.append(activations[i-1])
 
-        if model_def['type'] == 'yolo':
+        elif model_def['type'] == 'yolo':
+            activations.append(None)
+
+        elif model_def['type'] == 'maxpool':
             activations.append(None)
        
     return pruned_model
