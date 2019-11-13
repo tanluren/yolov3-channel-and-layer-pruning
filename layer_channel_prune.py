@@ -19,11 +19,13 @@ if __name__ == '__main__':
         pruning one shortcut will also prune two CBL,yolov3 has 23 shortcuts')
     parser.add_argument('--global_percent', type=float, default=0.8, help='global channel prune percent')
     parser.add_argument('--layer_keep', type=float, default=0.1, help='channel keep percent per layer')
+    parser.add_argument('--img_size', type=int, default=416, help='inference size (pixels)')
     opt = parser.parse_args()
     print(opt)
 
+    img_size = opt.img_size
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = Darknet(opt.cfg).to(device)
+    model = Darknet(opt.cfg, (img_size, img_size)).to(device)
 
     if opt.weights.endswith(".pt"):
         model.load_state_dict(torch.load(opt.weights, map_location=device)['model'])
@@ -150,7 +152,7 @@ if __name__ == '__main__':
         compact_module_defs[idx]['filters'] = str(CBLidx2filters[idx])
 
 
-    compact_model1 = Darknet([model.hyperparams.copy()] + compact_module_defs).to(device)
+    compact_model1 = Darknet([model.hyperparams.copy()] + compact_module_defs, (img_size, img_size)).to(device)
     compact_nparameters1 = obtain_num_parameters(compact_model1)
 
     init_weights_from_loose_model(compact_model1, pruned_model, CBL_idx, Conv_idx, CBLidx2mask)
@@ -260,7 +262,7 @@ if __name__ == '__main__':
                 module_def['layers'] = from_layers
 
     compact_module_defs = [compact_module_defs[i] for i in index_remain]
-    compact_model2 = Darknet([compact_model1.hyperparams.copy()] + compact_module_defs).to(device)
+    compact_model2 = Darknet([compact_model1.hyperparams.copy()] + compact_module_defs, (img_size, img_size)).to(device)
     for i, index in enumerate(index_remain):
         compact_model2.module_list[i] = pruned_model.module_list[index]
 
@@ -278,7 +280,7 @@ if __name__ == '__main__':
     #剪枝完毕，测试速度
 
 
-    random_input = torch.rand((1, 3, 416, 416)).to(device)
+    random_input = torch.rand((1, 3, img_size, img_size)).to(device)
 
     def obtain_avg_forward_time(input, model, repeat=200):
 
