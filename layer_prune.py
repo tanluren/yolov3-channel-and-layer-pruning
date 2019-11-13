@@ -19,11 +19,13 @@ if __name__ == '__main__':
     parser.add_argument('--weights', type=str, default='weights/last.pt', help='sparse model weights')
     parser.add_argument('--shortcuts', type=int, default=8, help='how many shortcut layers will be pruned,\
         pruning one shortcut will also prune two CBL,yolov3 has 23 shortcuts')
+    parser.add_argument('--img_size', type=int, default=416, help='inference size (pixels)')
     opt = parser.parse_args()
     print(opt)
 
+    img_size = opt.img_size
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = Darknet(opt.cfg).to(device)
+    model = Darknet(opt.cfg, (img_size, img_size)).to(device)
 
     if opt.weights.endswith(".pt"):
         model.load_state_dict(torch.load(opt.weights, map_location=device)['model'])
@@ -135,7 +137,7 @@ if __name__ == '__main__':
                 module_def['layers'] = from_layers
 
     compact_module_defs = [compact_module_defs[i] for i in index_remain]
-    compact_model = Darknet([model.hyperparams.copy()] + compact_module_defs).to(device)
+    compact_model = Darknet([model.hyperparams.copy()] + compact_module_defs, (img_size, img_size)).to(device)
     for i, index in enumerate(index_remain):
         compact_model.module_list[i] = pruned_model.module_list[index]
 
@@ -144,7 +146,7 @@ if __name__ == '__main__':
     # init_weights_from_loose_model(compact_model, pruned_model, CBL_idx, Conv_idx, CBLidx2mask)
 
 
-    random_input = torch.rand((1, 3, 416, 416)).to(device)
+    random_input = torch.rand((1, 3, img_size, img_size)).to(device)
 
     def obtain_avg_forward_time(input, model, repeat=200):
 
