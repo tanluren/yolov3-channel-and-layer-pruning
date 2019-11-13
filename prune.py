@@ -16,13 +16,14 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str, default='data/coco.data', help='*.data file path')
     parser.add_argument('--weights', type=str, default='weights/last.pt', help='sparse model weights')
     parser.add_argument('--percent', type=float, default=0.8, help='channel prune percent')
+    parser.add_argument('--img_size', type=int, default=416, help='inference size (pixels)')
     opt = parser.parse_args()
     print(opt)
 
 
-    #%%
+    img_size = opt.img_size
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = Darknet(opt.cfg).to(device)
+    model = Darknet(opt.cfg, (img_size, img_size)).to(device)
     if opt.weights.endswith('.pt'):
         model.load_state_dict(torch.load(opt.weights)['model'])
     else:
@@ -152,13 +153,13 @@ if __name__ == '__main__':
         compact_module_defs[idx]['filters'] = str(num)
 
     #%%
-    compact_model = Darknet([model.hyperparams.copy()] + compact_module_defs).to(device)
+    compact_model = Darknet([model.hyperparams.copy()] + compact_module_defs, (img_size, img_size)).to(device)
     compact_nparameters = obtain_num_parameters(compact_model)
 
     init_weights_from_loose_model(compact_model, pruned_model, CBL_idx, Conv_idx, CBLidx2mask)
 
     #%%
-    random_input = torch.rand((1, 3, 416, 416)).to(device)
+    random_input = torch.rand((1, 3, img_size, img_size)).to(device)
 
     def obtain_avg_forward_time(input, model, repeat=200):
 
