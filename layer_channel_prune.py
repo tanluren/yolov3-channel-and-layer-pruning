@@ -18,7 +18,7 @@ if __name__ == '__main__':
     parser.add_argument('--shortcuts', type=int, default=8, help='how many shortcut layers will be pruned,\
         pruning one shortcut will also prune two CBL,yolov3 has 23 shortcuts')
     parser.add_argument('--global_percent', type=float, default=0.6, help='global channel prune percent')
-    parser.add_argument('--layer_keep', type=float, default=0.1, help='channel keep percent per layer')
+    parser.add_argument('--layer_keep', type=float, default=0.01, help='channel keep percent per layer')
     parser.add_argument('--img_size', type=int, default=416, help='inference size (pixels)')
     opt = parser.parse_args()
     print(opt)
@@ -312,11 +312,11 @@ if __name__ == '__main__':
     print(AsciiTable(metric_table).table)
 
 
-    pruned_cfg_name = opt.cfg.replace('/', f'/prune_{opt.global_percent}_channels_{opt.shortcuts}_shortcut_')
+    pruned_cfg_name = opt.cfg.replace('/', f'/prune_{opt.global_percent}_keep_{opt.layer_keep}_{opt.shortcuts}_shortcut_')
     pruned_cfg_file = write_cfg(pruned_cfg_name, [model.hyperparams.copy()] + compact_module_defs)
     print(f'Config file has been saved: {pruned_cfg_file}')
 
-    compact_model_name = opt.weights.replace('/', f'/prune_{opt.global_percent}_channels_{opt.shortcuts}_shortcut_')
+    compact_model_name = opt.weights.replace('/', f'/prune_{opt.global_percent}_keep_{opt.layer_keep}_{opt.shortcuts}_shortcut_')
     if compact_model_name.endswith('.pt'):
         compact_model_name = compact_model_name.replace('.pt', '.weights')
     save_weights(compact_model2, path=compact_model_name)
