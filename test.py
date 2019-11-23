@@ -210,12 +210,13 @@ if __name__ == '__main__':
     opt = parser.parse_args()
     print(opt)
 
-    test(opt.cfg,
-         opt.data,
-         opt.weights,
-         opt.batch_size,
-         opt.img_size,
-         opt.iou_thres,
-         opt.conf_thres,
-         opt.nms_thres,
-         opt.save_json)
+    with torch.no_grad():
+        test(opt.cfg,
+             opt.data,
+             opt.weights,
+             opt.batch_size,
+             opt.img_size,
+             opt.iou_thres,
+             opt.conf_thres,
+             opt.nms_thres,
+             opt.save_json)
