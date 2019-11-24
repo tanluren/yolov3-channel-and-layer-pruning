@@ -15,7 +15,7 @@
 环境配置查看requirements.txt，数据准备参考[这里](https://github.com/ultralytics/yolov3/wiki/Train-Custom-Data)，预训练权重可以从darknet官网下载。<br>
 用yolov3训练自己的数据集，修改cfg，配置好data，用yolov3.weights初始化权重。<br>
 <br>
-`python train.py --cfg cfg/my_cfg.cfg --data data/my_data.data --weights weights/yolov3.weights --epochs 200 --batch-size 32`
+`python train.py --cfg cfg/my_cfg.cfg --data data/my_data.data --weights weights/yolov3.weights --epochs 100 --batch-size 32`
 
 #### 稀疏训练
 scale参数默认0.001，根据数据集，mAP,BN分布调整，数据分布广类别多的，或者稀疏时掉点厉害的适当调小s;-sr用于开启稀疏训练；--prune 0适用于prune.py，--prune 1 适用于其他剪枝策略。稀疏训练就是精度和稀疏度的博弈过程，如何寻找好的策略让稀疏后的模型保持高精度同时实现高稀疏度是值得研究的问题，大的s一般稀疏较快但精度掉的快，小的s一般稀疏较慢但精度掉的慢；配合大学习率会稀疏加快，后期小学习率有助于精度回升。<br>
@@ -36,7 +36,7 @@ scale参数默认0.001，根据数据集，mAP,BN分布调整，数据分布广�
 #### 通道剪枝策略三
 策略参考自[PengyiZhang/SlimYOLOv3](https://github.com/PengyiZhang/SlimYOLOv3)，这个策略的通道剪枝率最高，先以全局阈值找出各卷积层的mask，然后对于每组shortcut，它将相连的各卷积层的剪枝mask取并集，用merge后的mask进行剪枝，这样对每一个相关层都做了考虑，同时它还对每一个层的保留通道做了限制，实验中它的剪枝效果最好。在本项目中还对激活偏移值添加了处理，降低剪枝时的精度损失。<br>
 <br>
-`python slim_prune.py --cfg cfg/my_cfg.cfg --data data/my_data.data --weights weights/last.pt --global_percent 0.8 --layer_keep 0.1`
+`python slim_prune.py --cfg cfg/my_cfg.cfg --data data/my_data.data --weights weights/last.pt --global_percent 0.8 --layer_keep 0.01`
 
 #### 层剪枝
 这个策略是在之前的通道剪枝策略基础上衍生出来的，针对每一个shortcut层前一个CBL进行评价，对各层的Gmma最高值进行排序，取最小的进行层剪枝。为保证yolov3结构完整，这里每剪一个shortcut结构，会同时剪掉一个shortcut层和它前面的两个卷积层。是的，这里只考虑剪主干中的shortcut模块。但是yolov3中有23处shortcut，剪掉8个shortcut就是剪掉了24个层，剪掉16个shortcut就是剪掉了48个层，总共有69个层的剪层空间；实验中对简单的数据集剪掉了较多shortcut而精度降低很少。<br>
