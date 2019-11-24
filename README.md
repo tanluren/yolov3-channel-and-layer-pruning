@@ -12,14 +12,16 @@
 2.增加了多尺度推理支持，train.py和各剪枝脚本都可以指定命令行参数, 如 --img_size 608 .<br>
 
 #### 基础训练
+环境配置查看requirements.txt，数据准备参考[这里](https://github.com/ultralytics/yolov3/wiki/Train-Custom-Data)，预训练权重可以从darknet官网下载。<br>
 用yolov3训练自己的数据集，修改cfg，配置好data，用yolov3.weights初始化权重。<br>
 <br>
 `python train.py --cfg cfg/my_cfg.cfg --data data/my_data.data --weights weights/yolov3.weights --epochs 200 --batch-size 32`
 
 #### 稀疏训练
 scale参数默认0.001，根据数据集，mAP,BN分布调整，数据分布广类别多的，或者稀疏时掉点厉害的适当调小s;-sr用于开启稀疏训练；--prune 0适用于prune.py，--prune 1 适用于其他剪枝策略。稀疏训练就是精度和稀疏度的博弈过程，如何寻找好的策略让稀疏后的模型保持高精度同时实现高稀疏度是值得研究的问题，大的s一般稀疏较快但精度掉的快，小的s一般稀疏较慢但精度掉的慢；配合大学习率会稀疏加快，后期小学习率有助于精度回升。<br>
+注意：训练保存的pt权重包含epoch信息，可通过`python -c "from models import *; convert('cfg/yolov3.cfg', 'weights/last.pt')"`转换为darknet weights去除掉epoch信息，使用darknet weights从epoch 0开始稀疏训练。<br>
 <br>
-`python train.py --cfg cfg/my_cfg.cfg --data data/my_data.data --weights weights/last.pt --epochs 300 --batch-size 32 -sr --s 0.0001 --prune 0`
+`python train.py --cfg cfg/my_cfg.cfg --data data/my_data.data --weights weights/last.weights --epochs 300 --batch-size 32 -sr --s 0.001 --prune 1`
 
 #### 通道剪枝策略一
 策略源自[Lam1360/YOLOv3-model-pruning](https://github.com/Lam1360/YOLOv3-model-pruning)，这是一种保守的策略，因为yolov3中有五组共23处shortcut连接，对应的是add操作，通道剪枝后如何保证shortcut的两个输入维度一致，这是必须考虑的问题。而Lam1360/YOLOv3-model-pruning对shortcut直连的层不进行剪枝，避免了维度处理问题，但它同样实现了较高剪枝率，对模型参数的减小有很大帮助。虽然它剪枝率最低，但是它对剪枝各细节的处理非常优雅，后面的代码也较多参考了原始项目。在本项目中还更改了它的阈值规则，可以设置更高的剪枝阈值。<br>
@@ -57,3 +59,29 @@ scale参数默认0.001，根据数据集，mAP,BN分布调整，数据分布广�
 ![tensorboard](https://github.com/tanluren/yolov3-channel-and-layer-pruning/blob/master/data/img/2.jpg)
 <br>
 欢迎使用和测试，有问题或者交流实验过程可以发issue或者q我1806380874
+
+
+#### 案例
+使用yolov3-spp训练oxfordhand数据集并剪枝。下载[数据集](http://www.robots.ox.ac.uk/~vgg/data/hands/downloads/hand_dataset.tar.gz),解压到data文件夹，运行converter.py，把得到的train.txt和valid.txt路径更新在oxfordhand.data中。通过以下代码分别进行基础训练和稀疏训练：<br>
+`python train.py --cfg cfg/yolov3-spp-hand.cfg --data data/oxfordhand.data --weights weights/yolov3-spp.weights --batch-size 20 --epochs 100`<br>
+<br>
+`python -c "from models import *; convert('cfg/yolov3.cfg', 'weights/last.pt')"`<br>
+`python train.py --cfg cfg/yolov3-spp-hand.cfg --data data/oxfordhand.data --weights weights/converted.weights --batch-size 20 --epochs 300 -sr --s 0.001 --prune 1`<br>
+<br>
+训练的情况如下图，蓝色线是基础训练，红色线是稀疏训练。其中基础训练跑了100个epoch，后半段已经出现了过拟合，最终得到的baseline模型mAP为0.84;稀疏训练以s0.001跑了300个epoch，选择的稀疏类型为prune 1全局稀疏，为包括shortcut的剪枝做准备，并且在总epochs的0.7和0.9阶段进行了Gmma为0.1的学习率衰减，稀疏过程中模型精度起伏较大，在学习率降低后精度出现了回升，最终稀疏模型mAP 0.797。<br>
+![baseline_and_sparse](https://github.com/tanluren/yolov3-channel-and-layer-pruning/blob/master/data/img/baseline_and_sparse.jpg)
+<br>
+再来看看bn的稀疏情况，代码使用tensorboard记录了参与稀疏的bn层的Gmma权重变化，下图左边看到正常训练时Gmma总体上分布在1附近类似正态分布，右边可以看到稀疏过程Gmma大部分逐渐被压到接近0，接近0的通道其输出值近似于常量，可以将其剪掉。<br>
+![bn](https://github.com/tanluren/yolov3-channel-and-layer-pruning/blob/master/data/img/bn.jpg)
+<br>
+这时候便可以进行剪枝，这里例子使用layer_channel_prune.py同时进行剪通道和剪层，这个脚本融合了slim_prune剪通道策略和layer_prune剪层策略。Global perent剪通道的全局比例为0.93，layer keep每层最低保持通道数比例为0.01，shortcuts剪了16个，相当于剪了48个层(32个CBL，16个shortcut)；下图结果可以看到剪通道后模型掉了一个点，而大小从239M压缩到5.2M，剪层后mAP掉到0.53，大小压缩到4.6M，模型参数减少了98%，推理速度也从16毫秒减到6毫秒（tesla p100测试结果）。<br>
+`python layer_channel_prune.py --cfg cfg/yolov3-spp-hand.cfg --data data/oxfordhand.data --weights weights/last.pt --global_percent 0.93 --layer_keep 0.01 --shortcuts 16`<br>
+<br>
+![prune9316](https://github.com/tanluren/yolov3-channel-and-layer-pruning/blob/master/data/img/prune9316.png)
+<br>
+鉴于模型精度出现了下跌，我们来进行微调，下面是微调50个epoch的结果，精度恢复到了0.793，bn也开始呈正态分布，这个结果相对于baseline掉了几个点，但是模型大幅压缩减少了资源占用，提高了运行速度。如果想提高精度，可以尝试降低剪枝率，比如这里只剪10个shortcut的话，同样微调50epoch精度可以回到0.81；而想追求速度的话，这里有个极端例子，全局剪0.95，层剪掉54个，模型压缩到了2.8M，推理时间降到5毫秒，而mAP降到了0，但是微调50epoch后依然回到了0.75。<br>
+<br>
+`python train.py --cfg cfg/prune_16_shortcut_prune_0.93_keep_0.01_yolov3-spp-hand.cfg --data data/oxfordhand.data --weights weights/prune_16_shortcut_prune_0.93_keep_0.01_last.weights --batch-size 52 --epochs 50`<br>
+![finetune_and_bn](https://github.com/tanluren/yolov3-channel-and-layer-pruning/blob/master/data/img/finetune_and_bn.jpg)<br>
+可以猜测，剪枝得到的cfg是针对该数据集相对合理的结构，而保留的权重可以让模型快速训练接近这个结构的能力上限，这个过程类似于一种有限范围的结构搜索。而不同的训练策略，稀疏策略，剪枝策略会得到不同的结果，相信即使是这个例子也可以进一步压缩并保持良好精度。yolov3有众多优化项目和工程项目，可以利用这个剪枝得到的cfg和weights放到其他项目中做进一步优化和应用。<br>
+[这里](https://pan.baidu.com/s/1APUfwO4L69u28Wt9gFNAYw)分享了这个例子的权重和cfg，包括baseline，稀疏，不同剪枝设置后的结果。
