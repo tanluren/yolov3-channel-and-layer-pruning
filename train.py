@@ -477,7 +477,7 @@ if __name__ == '__main__':
     parser.add_argument('--sparsity-regularization', '-sr', dest='sr', action='store_true',
                         help='train with channel sparsity regularization')
     parser.add_argument('--s', type=float, default=0.001, help='scale sparse rate')
-    parser.add_argument('--prune', type=int, default=0, help='0:nomal prune 1:other prune ')
+    parser.add_argument('--prune', type=int, default=1, help='0:nomal prune 1:other prune ')
     opt = parser.parse_args()
     opt.weights = last if opt.resume else opt.weights
     print(opt)
