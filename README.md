@@ -10,7 +10,7 @@
 ####  更新
 1.增加了对yolov3-spp结构的支持，基础训练可以直接使用yolov3-spp.weights初始化权重，各个层剪枝及通道剪枝脚本的使用也和yolov3一致。<br>
 2.增加了多尺度推理支持，train.py和各剪枝脚本都可以指定命令行参数, 如 --img_size 608 .<br>
-
+3.2019/12/06更改了层剪枝的选层策略，由最大值排序改为均值排序。<br>
 #### 基础训练
 环境配置查看requirements.txt，数据准备参考[这里](https://github.com/ultralytics/yolov3/wiki/Train-Custom-Data)，预训练权重可以从darknet官网下载。<br>
 用yolov3训练自己的数据集，修改cfg，配置好data，用yolov3.weights初始化权重。<br>
