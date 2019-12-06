@@ -177,10 +177,17 @@ if __name__ == '__main__':
     sorted_bn = torch.sort(bn_weights)[0]
 
 
-    highest_thre = torch.zeros(len(shortcut_idx))
+    # highest_thre = torch.zeros(len(shortcut_idx))
+    # for i, idx in enumerate(shortcut_idx):
+    #     highest_thre[i] = compact_model1.module_list[idx][1].weight.data.abs().max().clone()
+    # _, sorted_index_thre = torch.sort(highest_thre)
+    
+    #这里更改了选层策略，由最大值排序改为均值排序，均值一般表现要稍好，但不是绝对，可以自己切换尝试；前面注释的四行为原策略。
+    bn_mean = torch.zeros(len(shortcut_idx))
     for i, idx in enumerate(shortcut_idx):
-        highest_thre[i] = compact_model1.module_list[idx][1].weight.data.abs().max().clone()
-    _, sorted_index_thre = torch.sort(highest_thre)
+        bn_mean[i] = compact_model1.module_list[idx][1].weight.data.abs().mean().clone()
+    _, sorted_index_thre = torch.sort(bn_mean)
+    
     prune_shortcuts = torch.tensor(shortcut_idx)[[sorted_index_thre[:opt.shortcuts]]]
     prune_shortcuts = [int(x) for x in prune_shortcuts]
 
