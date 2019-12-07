@@ -51,12 +51,14 @@ if f:
 
 def train():
     cfg = opt.cfg
+    t_cfg = opt.t_cfg  #teacher model cfg for knowledge distillation
     data = opt.data
     img_size = opt.img_size
     epochs = 1 if opt.prebias else opt.epochs  # 500200 batches at bs 64, 117263 images = 273 epochs
     batch_size = opt.batch_size
     accumulate = opt.accumulate  # effective bs = batch_size * accumulate = 16 * 4 = 64
     weights = opt.weights  # initial training weights
+    t_weights = opt.t_weights  #teacher model weights
 
     if 'pw' not in opt.arc:  # remove BCELoss positive weights
         hyp['cls_pw'] = 1.
@@ -83,6 +85,8 @@ def train():
 
     # Initialize model
     model = Darknet(cfg, (img_size, img_size), arc=opt.arc).to(device)
+    if t_cfg:
+        t_model = Darknet(t_cfg, (img_size, img_size), arc=opt.arc).to(device)
 
     # Optimizer
     pg0, pg1 = [], []  # optimizer parameter groups
@@ -114,7 +118,7 @@ def train():
         # if opt.transfer:
         chkpt['model'] = {k: v for k, v in chkpt['model'].items() if model.state_dict()[k].numel() == v.numel()}
         model.load_state_dict(chkpt['model'], strict=False)
-        print('loaded weights from', weights)
+        print('loaded weights from', weights, '\n')
         # else:
         #    model.load_state_dict(chkpt['model'])
 
@@ -137,7 +141,20 @@ def train():
     elif len(weights) > 0:  # darknet format
         # possible weights are 'yolov3.weights', 'yolov3-tiny.conv.15',  'darknet53.conv.74' etc.
         cutoff = load_darknet_weights(model, weights)
-        print('loaded weights from', weights)
+        print('loaded weights from', weights, '\n')
+
+
+    if t_cfg:
+        if t_weights.endswith('.pt'):
+            t_model.load_state_dict(torch.load(t_weights, map_location=device)['model'])
+        elif t_weights.endswith('.weights'):
+            load_darknet_weights(t_model, t_weights)
+        else:
+            raise Exception('pls provide proper teacher weights for knowledge distillation')
+        t_model.eval()
+        print('<.....................using knowledge distillation.......................>')
+        print('teacher model:', t_weights, '\n')
+
 
     if opt.prune==1:
         CBL_idx, _, prune_idx, shortcut_idx, _=parse_module_defs2(model.module_defs)
@@ -174,7 +191,7 @@ def train():
     # scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=range(59, 70, 1), gamma=0.8)  # gradual fall to 0.1*lr0
     # if opt.sr:
-    #     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[round(opt.epochs * x) for x in [0.5, 0.6]], gamma=0.1)
+    #     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[round(opt.epochs * x) for x in [0.8, 0.9]], gamma=0.1)
     # else:
     #     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[round(opt.epochs * x) for x in [0.8, 0.9]], gamma=0.1)
     # scheduler.last_epoch = start_epoch - 1
@@ -194,6 +211,7 @@ def train():
             if epoch > opt.epochs * 0.9:
                 # 在进行总epochs的90%时，进行以gamma^2的学习率衰减
                 step_index = 2
+
             lr = hyp['lr0'] * (gamma ** (step_index))
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
@@ -264,7 +282,7 @@ def train():
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
         model.train()
         print('learning rate:',optimizer.param_groups[0]['lr'])
-        print(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'GIoU', 'obj', 'cls', 'total', 'targets', 'img_size'))
+        print(('\n' + '%10s' * 9) % ('Epoch', 'gpu_mem', 'GIoU', 'obj', 'cls', 'total', 'soft', 'targets', 'img_size'))
 
         # Freeze backbone at epoch 0, unfreeze at epoch 1 (optional)
         freeze_backbone = False
@@ -280,16 +298,18 @@ def train():
             dataset.indices = random.choices(range(dataset.n), weights=image_weights, k=dataset.n)  # rand weighted idx
 
         mloss = torch.zeros(4).to(device)  # mean losses
+        msoft_target = torch.zeros(1).to(device)
         pbar = tqdm(enumerate(dataloader), total=nb)  # progress bar
         sr_flag = get_sr_flag(epoch, opt.sr)
         idx2mask = None
-        # if opt.sr and opt.prune==1 and epoch > opt.epochs * 0.733:
-        #     idx2mask = get_mask(model, prune_idx, shortcut_idx)
+        if opt.sr and opt.prune==1 and epoch > opt.epochs * 0.7:
+            idx2mask = get_mask2(model, prune_idx, 0.95)
         for i, (imgs, targets, paths, _) in pbar:  # batch -------------------------------------------------------------
             ni = i + nb * epoch  # number integrated batches (since train start)
 
             # 调整学习率，进行warm up和学习率衰减
             lr = adjust_learning_rate(optimizer, 0.1, epoch, ni, nb)
+
 
             imgs = imgs.to(device)
             targets = targets.to(device)
@@ -304,11 +324,11 @@ def train():
                     imgs = F.interpolate(imgs, size=ns, mode='bilinear', align_corners=False)
 
             # Plot images with bounding boxes
-            if ni == 0:
-                fname = 'train_batch%g.jpg' % i
-                plot_images(imgs=imgs, targets=targets, paths=paths, fname=fname)
-                if tb_writer:
-                    tb_writer.add_image(fname, cv2.imread(fname)[:, :, ::-1], dataformats='HWC')
+            # if ni == 0:
+            #     fname = 'train_batch%g.jpg' % i
+            #     plot_images(imgs=imgs, targets=targets, paths=paths, fname=fname)
+            #     if tb_writer:
+            #         tb_writer.add_image(fname, cv2.imread(fname)[:, :, ::-1], dataformats='HWC')
 
             # Hyperparameter burn-in
             # n_burn = nb - 1  # min(nb // 5 + 1, 1000)  # number of burn-in batches
@@ -330,6 +350,12 @@ def train():
                 print('WARNING: non-finite loss, ending training ', loss_items)
                 return results
 
+            soft_target = 0
+            if t_cfg:
+                _, output_t = t_model(imgs)
+                soft_target = distillation_loss1(pred, output_t, model.nc, imgs.size(0))
+                loss += soft_target
+
             # Scale loss by nominal batch_size of 64
             loss *= batch_size / 64
 
@@ -340,7 +366,7 @@ def train():
             else:
                 loss.backward()
 
-            BNOptimizer.updateBN(sr_flag, model.module_list, opt.s, prune_idx, idx2mask)
+            BNOptimizer.updateBN(sr_flag, model.module_list, opt.s, prune_idx, epoch, idx2mask, opt)
 
             # Accumulate gradient for x batches before optimizing
             if ni % accumulate == 0:
@@ -349,9 +375,10 @@ def train():
 
             # Print batch results
             mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
+            msoft_target = (msoft_target * i + soft_target) / (i + 1)
             mem = torch.cuda.memory_cached() / 1E9 if torch.cuda.is_available() else 0  # (GB)
-            s = ('%10s' * 2 + '%10.3g' * 6) % (
-                '%g/%g' % (epoch, epochs - 1), '%.3gG' % mem, *mloss, len(targets), img_size)
+            s = ('%10s' * 2 + '%10.3g' * 7) % (
+                '%g/%g' % (epoch, epochs - 1), '%.3gG' % mem, *mloss, msoft_target,len(targets), img_size)
             pbar.set_description(s)
 
             # end batch ------------------------------------------------------------------------------------------------
@@ -417,7 +444,7 @@ def train():
                 torch.save(chkpt, best)
 
             # Save backup every 10 epochs (optional)
-            if epoch > 0 and epoch % 5 == 0:
+            if epoch > 0 and epoch % 10 == 0:
                 torch.save(chkpt, wdir + 'backup%g.pt' % epoch)
 
             # Delete checkpoint
@@ -455,6 +482,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch-size', type=int, default=16)  # effective bs = batch_size * accumulate = 16 * 4 = 64
     parser.add_argument('--accumulate', type=int, default=2, help='batches to accumulate before optimizing')
     parser.add_argument('--cfg', type=str, default='cfg/yolov3-spp.cfg', help='cfg file path')
+    parser.add_argument('--t_cfg', type=str, default='', help='teacher model cfg file path for knowledge distillation')
     parser.add_argument('--data', type=str, default='data/coco.data', help='*.data file path')
     parser.add_argument('--multi-scale', action='store_true', help='adjust (67% - 150%) img_size every 10 batches')
     parser.add_argument('--img_size', type=int, default=416, help='inference size (pixels)')
@@ -468,6 +496,7 @@ if __name__ == '__main__':
     parser.add_argument('--img-weights', action='store_true', help='select training images by weight')
     parser.add_argument('--cache-images', action='store_true', help='cache images for faster training')
     parser.add_argument('--weights', type=str, default='', help='initial weights')  # i.e. weights/darknet.53.conv.74
+    parser.add_argument('--t_weights', type=str, default='', help='teacher model weights')
     parser.add_argument('--arc', type=str, default='defaultpw', help='yolo architecture')  # defaultpw, uCE, uBCE
     parser.add_argument('--prebias', action='store_true', help='transfer-learn yolo biases prior to training')
     parser.add_argument('--name', default='', help='renames results.txt to results_name.txt if supplied')
@@ -478,6 +507,7 @@ if __name__ == '__main__':
                         help='train with channel sparsity regularization')
     parser.add_argument('--s', type=float, default=0.001, help='scale sparse rate')
     parser.add_argument('--prune', type=int, default=1, help='0:nomal prune 1:other prune ')
+    
     opt = parser.parse_args()
     opt.weights = last if opt.resume else opt.weights
     print(opt)
