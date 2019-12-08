@@ -366,7 +366,7 @@ def train():
             else:
                 loss.backward()
 
-            BNOptimizer.updateBN(sr_flag, model.module_list, opt.s, prune_idx, epoch, idx2mask, opt)
+            BNOptimizer.updateBN(sr_flag, model.module_list, opt.s, prune_idx, idx2mask)
 
             # Accumulate gradient for x batches before optimizing
             if ni % accumulate == 0:
