@@ -302,8 +302,6 @@ def train():
         pbar = tqdm(enumerate(dataloader), total=nb)  # progress bar
         sr_flag = get_sr_flag(epoch, opt.sr)
         idx2mask = None
-        if opt.sr and opt.prune==1 and epoch > opt.epochs * 0.7:
-            idx2mask = get_mask2(model, prune_idx, 0.95)
         for i, (imgs, targets, paths, _) in pbar:  # batch -------------------------------------------------------------
             ni = i + nb * epoch  # number integrated batches (since train start)
 
@@ -323,12 +321,12 @@ def train():
                     ns = [math.ceil(x * sf / 32.) * 32 for x in imgs.shape[2:]]  # new shape (stretched to 32-multiple)
                     imgs = F.interpolate(imgs, size=ns, mode='bilinear', align_corners=False)
 
-            # Plot images with bounding boxes
-            # if ni == 0:
-            #     fname = 'train_batch%g.jpg' % i
-            #     plot_images(imgs=imgs, targets=targets, paths=paths, fname=fname)
-            #     if tb_writer:
-            #         tb_writer.add_image(fname, cv2.imread(fname)[:, :, ::-1], dataformats='HWC')
+            #Plot images with bounding boxes
+            if ni == 0:
+                fname = 'train_batch%g.jpg' % i
+                plot_images(imgs=imgs, targets=targets, paths=paths, fname=fname)
+                if tb_writer:
+                    tb_writer.add_image(fname, cv2.imread(fname)[:, :, ::-1], dataformats='HWC')
 
             # Hyperparameter burn-in
             # n_burn = nb - 1  # min(nb // 5 + 1, 1000)  # number of burn-in batches
@@ -409,9 +407,9 @@ def train():
 
         # Write Tensorboard results
         if tb_writer:
-            x = list(mloss) + list(results)
+            x = list(mloss) + list(results) + [msoft_target]
             titles = ['GIoU', 'Objectness', 'Classification', 'Train loss',
-                      'Precision', 'Recall', 'mAP', 'F1', 'val GIoU', 'val Objectness', 'val Classification']
+                      'Precision', 'Recall', 'mAP', 'F1', 'val GIoU', 'val Objectness', 'val Classification', 'soft_loss']
             for xi, title in zip(x, titles):
                 tb_writer.add_scalar(title, xi, epoch)
             bn_weights = gather_bn_weights(model.module_list, prune_idx)
