@@ -151,7 +151,8 @@ def train():
             load_darknet_weights(t_model, t_weights)
         else:
             raise Exception('pls provide proper teacher weights for knowledge distillation')
-        t_model.eval()
+        if not mixed_precision:
+            t_model.eval()
         print('<.....................using knowledge distillation.......................>')
         print('teacher model:', t_weights, '\n')
 
@@ -233,9 +234,13 @@ def train():
     # plt.savefig('LR.png', dpi=300)
 
     # Mixed precision training https://github.com/NVIDIA/apex
-    if mixed_precision:
-        model, optimizer = amp.initialize(model, optimizer, opt_level='O1', verbosity=0)
-
+    #if mixed_precision:
+        #model, optimizer = amp.initialize(model, optimizer, opt_level='O1', verbosity=0)
+     if mixed_precision:
+         if t_cfg:
+             [model,t_model], optimizer = amp.initialize([model,t_model],optimizer, opt_level='O1', verbosity=0)
+         else:
+             model, optimizer = amp.initialize(model, optimizer, opt_level='O0', verbosity=0)
     # Initialize distributed training
     if torch.cuda.device_count() > 1:
         dist.init_process_group(backend='nccl',  # 'distributed backend'
@@ -351,7 +356,11 @@ def train():
 
             soft_target = 0
             if t_cfg:
-                _, output_t = t_model(imgs)
+                if mixed_precision:
+                    with torch.no_grad():
+                          output_t = t_model(imgs)
+                else:
+                    _, output_t = t_model(imgs)
                 soft_target = distillation_loss1(pred, output_t, model.nc, imgs.size(0))
                 loss += soft_target
 
