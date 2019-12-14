@@ -238,9 +238,9 @@ def train():
         #model, optimizer = amp.initialize(model, optimizer, opt_level='O1', verbosity=0)
     if mixed_precision:
         if t_cfg:
-            [model,t_model], optimizer = amp.initialize([model,t_model],optimizer, opt_level='O1', verbosity=0)
+            [model,t_model], optimizer = amp.initialize([model,t_model],optimizer, opt_level='O1', verbosity=1)
         else:
-            model, optimizer = amp.initialize(model, optimizer, opt_level='O1', verbosity=0)
+            model, optimizer = amp.initialize(model, optimizer, opt_level='O1', verbosity=1)
     # Initialize distributed training
     if torch.cuda.device_count() > 1:
         dist.init_process_group(backend='nccl',  # 'distributed backend'
