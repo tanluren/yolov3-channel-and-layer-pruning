@@ -234,11 +234,9 @@ def train():
     # plt.savefig('LR.png', dpi=300)
 
     # Mixed precision training https://github.com/NVIDIA/apex
-    #if mixed_precision:
-        #model, optimizer = amp.initialize(model, optimizer, opt_level='O1', verbosity=0)
     if mixed_precision:
         if t_cfg:
-            [model,t_model], optimizer = amp.initialize([model,t_model],optimizer, opt_level='O1', verbosity=1)
+            [model, t_model], optimizer = amp.initialize([model, t_model], optimizer, opt_level='O1', verbosity=1)
         else:
             model, optimizer = amp.initialize(model, optimizer, opt_level='O1', verbosity=1)
     # Initialize distributed training
@@ -360,7 +358,7 @@ def train():
             if t_cfg:
                 if mixed_precision:
                     with torch.no_grad():
-                          output_t = t_model(imgs)
+                        output_t = t_model(imgs)
                 else:
                     _, output_t = t_model(imgs)
                 soft_target = distillation_loss1(pred, output_t, model.nc, imgs.size(0))
