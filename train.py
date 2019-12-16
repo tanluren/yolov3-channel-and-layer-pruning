@@ -287,7 +287,7 @@ def train():
     print('Starting %s for %g epochs...' % ('prebias' if opt.prebias else 'training', epochs))
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
         model.train()
-        print('learning rate:',optimizer.param_groups[0]['lr'])
+        #print('learning rate:',optimizer.param_groups[0]['lr'])
         print(('\n' + '%10s' * 9) % ('Epoch', 'gpu_mem', 'GIoU', 'obj', 'cls', 'total', 'soft', 'targets', 'img_size'))
 
         # Freeze backbone at epoch 0, unfreeze at epoch 1 (optional)
@@ -313,6 +313,8 @@ def train():
 
             # 调整学习率，进行warm up和学习率衰减
             lr = adjust_learning_rate(optimizer, 0.1, epoch, ni, nb)
+            if i == 0:
+                print('learning rate:', lr)
 
 
             imgs = imgs.to(device)
