@@ -901,3 +901,48 @@ def distillation_loss1(output_s, output_t, num_classes, batch_size):
     output_t = torch.cat([i.view(-1, num_classes + 5) for i in output_t])
     loss_st  = criterion_st(nn.functional.log_softmax(output_s/T, dim=1), nn.functional.softmax(output_t/T,dim=1))* (T*T) / batch_size
     return loss_st * Lambda_ST
+
+
+
+def distillation_loss2(model, targets, output_s, output_t):
+    reg_m = 0.0
+    T = 3.0
+    Lambda_cls, Lambda_box = 0.0001, 0.001
+
+    criterion_st = torch.nn.KLDivLoss(reduction='sum')
+    ft = torch.cuda.FloatTensor if output_s[0].is_cuda else torch.Tensor
+    lcls, lbox = ft([0]), ft([0])
+
+    tcls, tbox, indices, anchor_vec = build_targets(model, targets)
+    reg_ratio, reg_num, reg_nb = 0, 0, 0
+    for i, (ps, pt) in enumerate(zip(output_s, output_t)):  # layer index, layer predictions
+        b, a, gj, gi = indices[i]  # image, anchor, gridy, gridx
+
+        nb = len(b)
+        if nb:  # number of targets
+            pss = ps[b, a, gj, gi]  # prediction subset corresponding to targets
+            pts = pt[b, a, gj, gi]
+
+            psxy = torch.sigmoid(pss[:, 0:2])  # pxy = pxy * s - (s - 1) / 2,  s = 1.5  (scale_xy)
+            psbox = torch.cat((psxy, torch.exp(pss[:, 2:4]) * anchor_vec[i]), 1).view(-1, 4)  # predicted box
+
+            ptxy = torch.sigmoid(pts[:, 0:2])  # pxy = pxy * s - (s - 1) / 2,  s = 1.5  (scale_xy)
+            ptbox = torch.cat((ptxy, torch.exp(pts[:, 2:4]) * anchor_vec[i]), 1).view(-1, 4)  # predicted box
+
+
+            l2_dis_s = (psbox - tbox[i]).pow(2).sum(1)
+            l2_dis_s_m = l2_dis_s + reg_m
+            l2_dis_t = (ptbox - tbox[i]).pow(2).sum(1)
+            l2_num = l2_dis_s_m > l2_dis_t
+            lbox += l2_dis_s[l2_num].sum()
+            reg_num += l2_num.sum().item()
+            reg_nb += nb
+
+        output_s_i = ps[..., 4:].view(-1, model.nc + 1)
+        output_t_i = pt[..., 4:].view(-1, model.nc + 1)
+        lcls += criterion_st(nn.functional.log_softmax(output_s_i/T, dim=1), nn.functional.softmax(output_t_i/T,dim=1))* (T*T) / ps.size(0)
+
+    if reg_nb:
+        reg_ratio = reg_num / reg_nb
+
+    return lcls * Lambda_cls + lbox * Lambda_box, reg_ratio
