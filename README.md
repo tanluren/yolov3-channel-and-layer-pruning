@@ -14,6 +14,7 @@
 4.2019/12/08**重要**更新，增加了**知识蒸馏**策略。蒸馏是用高精度的大模型指导低精度的小模型，在结构相似的情况下效果尤为明显。而剪枝得到的小模型和原模型在结构上高度相似，非常符合蒸馏的应用条件。这里更新了一个参考Hinton大神Distilling the Knowledge in a Neural Network的蒸馏策略，原策略是针对分类模型的，但在这里也有不错的表现。调用只需要在微调的时候指定老师模型的cfg和权重即可：--t_cfg  --t_weights。最近会更新第二种针对yolo检测的知识蒸馏策略。<br>
 5.2019/12/10交流的小伙伴比较多，回答不过来，可以加群734912150 <br>
 6.2019/12/14增加了针对蒸馏的混合精度训练支持，项目中各项训练都可以使用[apex](https://github.com/NVIDIA/apex)加速,但需要先安装。使用混合精度可以加速训练，同时减轻显存占用，但训练效果可能会差一丢丢。代码默认开启了混合精度，如需关闭，可以把train.py中的mixed_precision改为False.<br>
+7.2019/12/23更新了**知识蒸馏策略二**，并默认使用二。策略二参考了论文"Learning Efficient Object Detection Models with Knowledge Distillation"，相比策略一，对分类和回归分别作了处理，分类的蒸馏和策略一差不多，回归部分会分别计算学生和老师相对target的L2距离，如果学生更远，学生会再向target学习，而不是向老师学习。调用同样是指定老师的cfg和权重即可。需要强调的是，蒸馏在这里只是辅助微调，如果注重精度优先，剪枝时尽量剪不掉点的比例，这时蒸馏的作用也不大；如果注重速度，剪枝比例较大，导致模型精度下降较多，可以结合蒸馏提升精度。<br>
 #### 基础训练
 环境配置查看requirements.txt，数据准备参考[这里](https://github.com/ultralytics/yolov3/wiki/Train-Custom-Data)，预训练权重可以从darknet官网下载。<br>
 用yolov3训练自己的数据集，修改cfg，配置好data，用yolov3.weights初始化权重。<br>
