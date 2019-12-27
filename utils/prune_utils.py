@@ -138,9 +138,9 @@ def write_cfg(cfg_file, module_defs):
 class BNOptimizer():
 
     @staticmethod
-    def updateBN(sr_flag, module_list, s, prune_idx, idx2mask=None):
+    def updateBN(sr_flag, module_list, s, prune_idx, epoch, idx2mask=None, opt=None):
         if sr_flag:
-            
+            # s = s if epoch <= opt.epochs * 0.5 else s * 0.01
             for idx in prune_idx:
                 # Squential(Conv, BN, Lrelu)
                 bn_module = module_list[idx][1]
@@ -369,8 +369,22 @@ def get_mask(model, prune_idx, shortcut_idx):
 
     prune2mask = {idx: mask for idx, mask in zip(prune_idx, filters_mask)}
     return prune2mask
+                    
+def get_mask2(model, prune_idx, percent):
+    bn_weights = gather_bn_weights(model.module_list, prune_idx)
+    sorted_bn = torch.sort(bn_weights)[0]
+    thre_index = int(len(sorted_bn) * percent)
+    thre = sorted_bn[thre_index]
 
+    filters_mask = []
+    for idx in prune_idx:
+        bn_module = model.module_list[idx][1]        
+        mask = obtain_bn_mask(bn_module, thre).cpu()
+        filters_mask.append(mask.clone())
 
+    prune2mask = {idx: mask for idx, mask in zip(prune_idx, filters_mask)}
+    return prune2mask
+                    
 def merge_mask(model, CBLidx2mask, CBLidx2filters):
     for i in range(len(model.module_defs) - 1, -1, -1):
         mtype = model.module_defs[i]['type']
@@ -395,8 +409,8 @@ def merge_mask(model, CBLidx2mask, CBLidx2filters):
                     bn = int(model.module_defs[layer_i]['batch_normalize'])
                     if bn: 
                         Merge_masks.append(CBLidx2mask[layer_i].unsqueeze(0))
+   
                 
-
             if len(Merge_masks) > 1:
                 Merge_masks = torch.cat(Merge_masks, 0)
                 merge_mask = (torch.sum(Merge_masks, dim=0) > 0).float()
