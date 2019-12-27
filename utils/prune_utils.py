@@ -148,7 +148,8 @@ class BNOptimizer():
             if idx2mask:
                 for idx in idx2mask:
                     bn_module = module_list[idx][1]
-                    bn_module.weight.grad.data.add_(0.5 * s * torch.sign(bn_module.weight.data) * (1 - idx2mask[idx].cuda()))
+                    #bn_module.weight.grad.data.add_(0.5 * s * torch.sign(bn_module.weight.data) * (1 - idx2mask[idx].cuda()))
+                    bn_module.weight.grad.data.sub_(0.99 * s * torch.sign(bn_module.weight.data) * idx2mask[idx].cuda())
 
 
 def obtain_quantiles(bn_weights, num_quantile=5):
