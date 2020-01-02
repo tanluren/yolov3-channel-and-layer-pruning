@@ -33,7 +33,7 @@ if __name__ == '__main__':
     eval_model = lambda model:test(opt.cfg, opt.data, 
         weights=opt.weights, 
         batch_size=16,
-         img_size=416,
+         img_size=img_size,
          iou_thres=0.5,
          conf_thres=0.001,
          nms_thres=0.5,
