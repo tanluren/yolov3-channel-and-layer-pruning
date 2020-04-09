@@ -21,8 +21,8 @@ def parse_module_defs(module_defs):
                 CBL_idx.append(i)
             else:
                 Conv_idx.append(i)
-            if module_defs[i+1]['type'] == 'maxpool':
-                #spp前一个CBL不剪
+            if module_defs[i+1]['type'] == 'maxpool' and module_defs[i+2]['type'] == 'route':
+                #spp前一个CBL不剪 区分tiny
                 ignore_idx.add(i)
 
         elif module_def['type'] == 'shortcut':
@@ -56,8 +56,8 @@ def parse_module_defs2(module_defs):
                 CBL_idx.append(i)
             else:
                 Conv_idx.append(i)
-            if module_defs[i+1]['type'] == 'maxpool':
-                #spp前一个CBL不剪
+            if module_defs[i+1]['type'] == 'maxpool' and module_defs[i+2]['type'] == 'route':
+                #spp前一个CBL不剪 区分spp和tiny
                 ignore_idx.add(i)
 
         elif module_def['type'] == 'upsample':
@@ -204,7 +204,8 @@ def get_input_mask(module_defs, idx, CBLidx2mask):
         else:
             print("Something wrong with route module!")
             raise Exception
-
+    elif module_defs[idx - 1]['type'] == 'maxpool':  #tiny
+        return CBLidx2mask[idx - 2]
 
 def init_weights_from_loose_model(compact_model, loose_model, CBL_idx, Conv_idx, CBLidx2mask):
 
@@ -339,8 +340,13 @@ def prune_model_keep_size2(model, prune_idx, CBL_idx, CBLidx2mask):
         elif model_def['type'] == 'yolo':
             activations.append(None)
 
-        elif model_def['type'] == 'maxpool':
-            activations.append(None)
+        elif model_def['type'] == 'maxpool':  #区分spp和tiny
+            if model.module_defs[i + 1]['type'] == 'route':
+                activations.append(None)
+            else:
+                activation = activations[i-1]
+                update_activation(i, pruned_model, activation, CBL_idx)
+                activations.append(activation)
        
     return pruned_model
 
