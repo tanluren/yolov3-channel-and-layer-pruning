@@ -107,3 +107,6 @@ scale参数默认0.001，根据数据集，mAP,BN分布调整，数据分布广�
 ![finetune_and_bn](https://github.com/tanluren/yolov3-channel-and-layer-pruning/blob/master/data/img/finetune_and_bn.jpg)<br>
 可以猜测，剪枝得到的cfg是针对该数据集相对合理的结构，而保留的权重可以让模型快速训练接近这个结构的能力上限，这个过程类似于一种有限范围的结构搜索。而不同的训练策略，稀疏策略，剪枝策略会得到不同的结果，相信即使是这个例子也可以进一步压缩并保持良好精度。yolov3有众多优化项目和工程项目，可以利用这个剪枝得到的cfg和weights放到其他项目中做进一步优化和应用。<br>
 [这里](https://pan.baidu.com/s/1APUfwO4L69u28Wt9gFNAYw)分享了这个例子的权重和cfg，包括baseline，稀疏，不同剪枝设置后的结果。
+
+## License
+Apache 2.0
