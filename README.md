@@ -18,7 +18,8 @@
 8.2019/12/27更新了两种**稀疏策略**，详看下面稀疏训练环节。<br>
 9.2020/01/02修正各剪枝版本多分辨率推理test问题，主要是把命令行参数img_size传递给test函数。<br>
 10.2020/01/04补了个[博客](https://blog.csdn.net/weixin_41397123/article/details/103828931)分享**无人机数据集visdrone**案例，演示如何压缩一个12M的无人机视角目标检测模型（标题党）。<br>
-11.2020/04/10增加了yolov3-tiny的剪枝支持，稀疏照旧，剪通道用slim_prune.py，不可剪层。
+11.2020/04/10增加了yolov3-tiny的剪枝支持，稀疏照旧，剪通道用slim_prune.py，不可剪层。<br>
+12.2020/04/24增加对yolov4剪通道和剪层的支持，剪枝脚本已验证，但模型只是基于旧u版加了mish激活，效果未必相当原版，ｕ版官方五月也会更新v4支持，到时再移植到新仓库。
 
 #### 基础训练
 环境配置查看requirements.txt，数据准备参考[这里](https://github.com/ultralytics/yolov3/wiki/Train-Custom-Data)，预训练权重可以从darknet官网下载。<br>
