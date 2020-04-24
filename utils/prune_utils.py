@@ -189,7 +189,10 @@ def get_input_mask(module_defs, idx, CBLidx2mask):
 
         elif len(route_in_idxs) == 2:
             # return np.concatenate([CBLidx2mask[in_idx - 1] for in_idx in route_in_idxs])
-            mask1 = CBLidx2mask[route_in_idxs[0] - 1]
+            if module_defs[route_in_idxs[0]]['type'] == 'upsample': 
+                mask1 = CBLidx2mask[route_in_idxs[0] - 1]
+            elif module_defs[route_in_idxs[0]]['type'] == 'convolutional':
+                mask1 = CBLidx2mask[route_in_idxs[0]]
             if module_defs[route_in_idxs[1]]['type'] == 'convolutional':
                 mask2 = CBLidx2mask[route_in_idxs[1]]
             else:
@@ -324,7 +327,7 @@ def prune_model_keep_size2(model, prune_idx, CBL_idx, CBLidx2mask):
             from_layers = [int(s) for s in model_def['layers'].split(',')]
             activation = None
             if len(from_layers) == 1:
-                activation = activations[i + from_layers[0]]
+                activation = activations[i + from_layers[0] if from_layers[0] < 0 else from_layers[0]]
                 update_activation(i, pruned_model, activation, CBL_idx)
             elif len(from_layers) == 2:
                 actv1 = activations[i + from_layers[0]]
