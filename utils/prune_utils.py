@@ -307,7 +307,10 @@ def prune_model_keep_size2(model, prune_idx, CBL_idx, CBLidx2mask):
                 mask = torch.from_numpy(CBLidx2mask[i]).cuda()
                 bn_module = pruned_model.module_list[i][1]
                 bn_module.weight.data.mul_(mask)
-                activation = F.leaky_relu((1 - mask) * bn_module.bias.data, 0.1)
+                if model_def['activation'] == 'leaky':
+                    activation = F.leaky_relu((1 - mask) * bn_module.bias.data, 0.1)
+                elif model_def['activation'] == 'mish':
+                    activation = (1 - mask) * bn_module.bias.data.mul(F.softplus(bn_module.bias.data).tanh())
                 update_activation(i, pruned_model, activation, CBL_idx)
                 bn_module.bias.data.mul_(mask)
             activations.append(activation)
@@ -331,7 +334,7 @@ def prune_model_keep_size2(model, prune_idx, CBL_idx, CBLidx2mask):
                 update_activation(i, pruned_model, activation, CBL_idx)
             elif len(from_layers) == 2:
                 actv1 = activations[i + from_layers[0]]
-                actv2 = activations[from_layers[1]]
+                actv2 = activations[i + from_layers[1] if from_layers[1] < 0 else from_layers[1]]
                 activation = torch.cat((actv1, actv2))
                 update_activation(i, pruned_model, activation, CBL_idx)
             activations.append(activation)
