@@ -124,7 +124,7 @@ class Swish(nn.Module):
     
 class Mish(nn.Module):  # https://github.com/digantamisra98/Mish
     def forward(self, x):
-        return x.mul_(F.softplus(x).tanh())
+        return x.mul(torch.tanh(F.softplus(x)))
     
 
 class YOLOLayer(nn.Module):
