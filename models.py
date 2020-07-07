@@ -55,6 +55,8 @@ def create_modules(module_defs, img_size, arc):
         elif mdef['type'] == 'route':  # nn.Sequential() placeholder for 'route' layer
             layers = [int(x) for x in mdef['layers'].split(',')]
             filters = sum([output_filters[i + 1 if i > 0 else i] for i in layers])
+            if 'groups' in mdef:
+                filters = filters // 2
             routs.extend([l if l > 0 else l + i for l in layers])
             # if mdef[i+1]['type'] == 'reorg3d':
             #     modules = nn.Upsample(scale_factor=1/float(mdef[i+1]['stride']), mode='nearest')  # reorg3d
@@ -238,6 +240,8 @@ class Darknet(nn.Module):
                 layers = [int(x) for x in mdef['layers'].split(',')]
                 if len(layers) == 1:
                     x = layer_outputs[layers[0]]
+                    if 'groups' in mdef:
+                        x = x[:, (x.shape[1]//2):]
                 else:
                     try:
                         x = torch.cat([layer_outputs[i] for i in layers], 1)
